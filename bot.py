@@ -1,55 +1,67 @@
 import os
 import discord
-from discord.ext import commands
 from discord import app_commands
+from discord.ext import commands
 
-# Récupération des variables d'environnement directement
-TOKEN = os.getenv("DISCORD_TOKEN")
-GUILD_ID = int(os.getenv("GUILD_ID"))  # ID du serveur Discord
+# Récupération des variables d'environnement (config Railway)
+TOKEN = os.environ.get("DISCORD_TOKEN")
+GUILD_ID = int(os.environ.get("GUILD_ID"))
 
 if TOKEN is None or GUILD_ID is None:
-    raise ValueError("Token ou GUILD_ID manquant ! Vérifie tes variables d'environnement.")
+    raise ValueError("Il faut définir DISCORD_TOKEN et GUILD_ID dans les variables d'environnement !")
 
-# Intents nécessaires
 intents = discord.Intents.default()
-intents.message_content = True
-intents.members = True  # Pour assigner des rôles et mentionner des utilisateurs
+intents.members = True  # nécessaire pour assigner des rôles
 
 client = commands.Bot(command_prefix="!", intents=intents)
-tree = client.tree  # utiliser le tree déjà associé au client
+tree = app_commands.CommandTree(client)
 
-# --- COMMANDES ---
+# Rôles autorisés pour assignement
+ALLOWED_ROLES = ["Trad", "Check", "Clean", "Edit", "Qedit"]
 
-# /infos
-@tree.command(name="infos", description="Obtenir des infos sur le projet")
-async def infos(interaction: discord.Interaction):
-    await interaction.response.send_message("Voici les infos du projet.")
-
-# /assignement
-@tree.command(name="assignement", description="Assigner un rôle et une série")
-@app_commands.choices(role=[
-    app_commands.Choice(name="Trad", value="Trad"),
-    app_commands.Choice(name="Check", value="Check"),
-    app_commands.Choice(name="Clean", value="Clean"),
-    app_commands.Choice(name="Edit", value="Edit"),
-    app_commands.Choice(name="Qedit", value="Qedit")
-])
-@app_commands.describe(salon="Nom du salon de la série", user="Utilisateur à assigner")
-async def assignement(interaction: discord.Interaction, role: app_commands.Choice[str], salon: str, user: discord.Member):
-    # Vérifie que le salon existe sur le serveur
-    discord_salon = discord.utils.get(interaction.guild.text_channels, name=salon)
-    if not discord_salon:
-        await interaction.response.send_message(f"Le salon `{salon}` n'existe pas.", ephemeral=True)
-        return
-    
-    await interaction.response.send_message(f"Assigné {role.value} pour {discord_salon.mention} à {user.mention}")
-
-# --- EVENT READY ---
 @client.event
 async def on_ready():
+    print(f"{client.user} connecté !")
     guild = discord.Object(id=GUILD_ID)
     await tree.sync(guild=guild)
-    print(f"{client.user} connecté. Commandes synchronisées pour le serveur {GUILD_ID}.")
+    print(f"Commandes synchronisées sur le serveur {GUILD_ID}")
 
-# Lancer le bot
+# --------------------------
+# Commande /infos
+# --------------------------
+@tree.command(name="infos", description="Affiche les infos du bot", guild=discord.Object(id=GUILD_ID))
+async def infos(interaction: discord.Interaction):
+    await interaction.response.send_message(
+        f"Bot opérationnel ✅\nUtilisateur: {interaction.user.mention}"
+    )
+
+# --------------------------
+# Commande /assignement
+# --------------------------
+@tree.command(name="assignement", description="Assigne un rôle à un utilisateur pour une série", guild=discord.Object(id=GUILD_ID))
+@app_commands.describe(
+    role="Rôle à assigner",
+    serie="Salon texte de la série",
+    user="Utilisateur à assigner"
+)
+async def assignement(interaction: discord.Interaction, role: str, serie: discord.TextChannel, user: discord.Member):
+    # Vérifie que le rôle est autorisé
+    if role not in ALLOWED_ROLES:
+        await interaction.response.send_message(
+            f"Rôle invalide. Choisis parmi: {', '.join(ALLOWED_ROLES)}", ephemeral=True
+        )
+        return
+
+    # Cherche le rôle sur le serveur
+    discord_role = discord.utils.get(interaction.guild.roles, name=role)
+    if not discord_role:
+        await interaction.response.send_message(f"Le rôle `{role}` n'existe pas sur ce serveur.", ephemeral=True)
+        return
+
+    # Assigne le rôle
+    await user.add_roles(discord_role)
+    await interaction.response.send_message(
+        f"{user.mention} a reçu le rôle `{role}` pour la série {serie.mention} ✅"
+    )
+
 client.run(TOKEN)
