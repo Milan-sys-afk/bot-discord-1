@@ -1,40 +1,47 @@
-import os
 import discord
 from discord import app_commands
 from discord.ext import commands
+import os
 
-TOKEN = os.environ.get("DISCORD_TOKEN")
-GUILD_ID = int(os.environ.get("GUILD_ID"))
+# ----- CONFIGURATION -----
+# Remplace GUILD_ID par l'ID de ton serveur
+GUILD_ID = 1477748649642692709
 
-if TOKEN is None or GUILD_ID is None:
-    raise ValueError("Il faut définir DISCORD_TOKEN et GUILD_ID dans les variables d'environnement !")
+# Rôles autorisés pour /assignement
+ALLOWED_ROLES = ["Trad", "Check", "Clean", "Edit", "Qedit"]
 
+# Token Railway
+TOKEN = os.environ.get("DISCORD_TOKEN")  # Assure-toi que Railway a bien la variable DISCORD_TOKEN
+
+# ----- INTENTS -----
 intents = discord.Intents.default()
-intents.members = True  # nécessaire pour assigner des rôles
+intents.members = True
+intents.message_content = True
 
 client = commands.Bot(command_prefix="!", intents=intents)
 
-ALLOWED_ROLES = ["Trad", "Check", "Clean", "Edit", "Qedit"]
-
+# ----- COMMAND TREE -----
 @client.event
 async def on_ready():
-    print(f"{client.user} connecté !")
-    guild = discord.Object(id=GUILD_ID)
-    await client.tree.sync(guild=guild)
-    print(f"Commandes synchronisées sur le serveur {GUILD_ID}")
+    await client.tree.sync(guild=discord.Object(id=GUILD_ID))
+    print(f"Connecté en tant que {client.user}")
 
-# --------------------------
-# Commande /infos
-# --------------------------
-@client.tree.command(name="infos", description="Affiche les infos du bot", guild=discord.Object(id=GUILD_ID))
+# ----- /infos -----
+@client.tree.command(
+    name="infos",
+    description="Affiche des informations sur le bot",
+    guild=discord.Object(id=GUILD_ID)
+)
 async def infos(interaction: discord.Interaction):
-    await interaction.response.send_message(
-        f"Bot opérationnel ✅\nUtilisateur: {interaction.user.mention}"
+    embed = discord.Embed(
+        title="Bot Infos",
+        description="Je suis le bot principal pour gérer les assignements et infos des séries.",
+        color=discord.Color.blue()
     )
+    embed.add_field(name="Commandes disponibles", value="/infos, /assignement")
+    await interaction.response.send_message(embed=embed, ephemeral=True)
 
-# --------------------------
-# Commande /assignement
-# --------------------------
+# ----- /assignement -----
 @client.tree.command(
     name="assignement",
     description="Assigne un rôle à un utilisateur pour une série",
@@ -45,21 +52,30 @@ async def infos(interaction: discord.Interaction):
     serie="Salon texte de la série",
     user="Utilisateur à assigner"
 )
-async def assignement(interaction: discord.Interaction, role: str, serie: discord.TextChannel, user: discord.Member):
-    if role not in ALLOWED_ROLES:
-        await interaction.response.send_message(
-            f"Rôle invalide. Choisis parmi: {', '.join(ALLOWED_ROLES)}", ephemeral=True
-        )
-        return
-
-    discord_role = discord.utils.get(interaction.guild.roles, name=role)
+@app_commands.choices(role=[app_commands.Choice(name=r, value=r) for r in ALLOWED_ROLES])
+async def assignement(
+    interaction: discord.Interaction, 
+    role: app_commands.Choice[str], 
+    serie: discord.TextChannel, 
+    user: discord.Member
+):
+    discord_role = discord.utils.get(interaction.guild.roles, name=role.value)
     if not discord_role:
-        await interaction.response.send_message(f"Le rôle `{role}` n'existe pas sur ce serveur.", ephemeral=True)
+        await interaction.response.send_message(f"Le rôle `{role.value}` n'existe pas sur ce serveur.", ephemeral=True)
         return
 
-    await user.add_roles(discord_role)
-    await interaction.response.send_message(
-        f"{user.mention} a reçu le rôle `{role}` pour la série {serie.mention} ✅"
-    )
+    try:
+        await user.add_roles(discord_role)
+        await interaction.response.send_message(
+            f"{user.mention} a reçu le rôle `{role.value}` pour la série {serie.mention} ✅"
+        )
+    except discord.Forbidden:
+        await interaction.response.send_message("Je n'ai pas la permission d'ajouter ce rôle.", ephemeral=True)
+    except Exception as e:
+        await interaction.response.send_message(f"Erreur: {e}", ephemeral=True)
 
-client.run(TOKEN)
+# ----- RUN BOT -----
+if TOKEN is None:
+    print("Erreur: DISCORD_TOKEN non défini dans les variables d'environnement.")
+else:
+    client.run(TOKEN)
