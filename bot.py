@@ -2,10 +2,8 @@ import os
 import discord
 from discord.ext import commands
 from discord import app_commands
-from dotenv import load_dotenv
 
-# Charger le token depuis .env ou variable d'environnement Railway
-load_dotenv()
+# Récupération des variables d'environnement directement
 TOKEN = os.getenv("DISCORD_TOKEN")
 GUILD_ID = int(os.getenv("GUILD_ID"))  # ID du serveur Discord
 
