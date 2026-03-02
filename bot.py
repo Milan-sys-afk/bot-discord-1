@@ -4,6 +4,7 @@ import asyncio
 import json
 import requests
 import os
+from discord import app_commands
 
 TOKEN = os.getenv("TOKEN")
 GUILD_ID = int(os.getenv("GUILD_ID"))
@@ -152,3 +153,4 @@ async def on_raw_reaction_remove(payload):
 # ===== RUN =====
 
 client.run(TOKEN)
+
