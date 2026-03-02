@@ -1,5 +1,5 @@
 import discord
-from discord import app_commands
+from discord.ext import commands
 import asyncio
 import json
 import requests
@@ -150,4 +150,5 @@ async def on_raw_reaction_remove(payload):
             await member.remove_roles(discord_role)
 
 # ===== RUN =====
+
 client.run(TOKEN)
