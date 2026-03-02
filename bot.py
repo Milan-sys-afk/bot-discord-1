@@ -2,56 +2,56 @@ import os
 import discord
 from discord.ext import commands
 from discord import app_commands
+from dotenv import load_dotenv
 
-TOKEN = os.environ["DISCORD_TOKEN"]
-GUILD_ID = int(os.environ["GUILD_ID"])
+# Charger le token depuis .env ou variable d'environnement Railway
+load_dotenv()
+TOKEN = os.getenv("DISCORD_TOKEN")
+GUILD_ID = int(os.getenv("GUILD_ID"))  # ID du serveur Discord
 
-# Intents
+if TOKEN is None or GUILD_ID is None:
+    raise ValueError("Token ou GUILD_ID manquant ! Vérifie tes variables d'environnement.")
+
+# Intents nécessaires
 intents = discord.Intents.default()
-intents.members = True
+intents.message_content = True
+intents.members = True  # Pour assigner des rôles et mentionner des utilisateurs
 
-bot = commands.Bot(command_prefix="!", intents=intents)
-tree = bot.tree
+client = commands.Bot(command_prefix="!", intents=intents)
+tree = client.tree  # utiliser le tree déjà associé au client
 
-# Rôles autorisés
-ROLES_CHOICES = ["Trad", "Check", "Clean", "Edit", "Qedit"]
+# --- COMMANDES ---
 
-# Fonction pour récupérer les salons séries
-def get_series_channels(guild: discord.Guild):
-    return [c for c in guild.text_channels if c.name.startswith("serie-")]
-
-# Commande /infos
-@tree.command(name="infos", description="Affiche les infos du bot ou du serveur")
+# /infos
+@tree.command(name="infos", description="Obtenir des infos sur le projet")
 async def infos(interaction: discord.Interaction):
-    await interaction.response.send_message(f"Bot : {bot.user.name}\nServeur : {interaction.guild.name}\nTotal membres : {interaction.guild.member_count}")
+    await interaction.response.send_message("Voici les infos du projet.")
 
-# Commande /assignement
-@tree.command(name="assignement", description="Assigner un rôle et une série à un utilisateur")
-@app_commands.describe(
-    role="Rôle à assigner",
-    series="Salon de la série",
-    user="Utilisateur à assigner"
-)
-@app_commands.choices(role=[app_commands.Choice(name=r, value=r) for r in ROLES_CHOICES])
-async def assignement(interaction: discord.Interaction, role: app_commands.Choice[str], series: str, user: discord.Member):
-    guild = interaction.guild
-    if series not in [c.name for c in get_series_channels(guild)]:
-        await interaction.response.send_message(f"Erreur : le salon `{series}` n'existe pas.", ephemeral=True)
+# /assignement
+@tree.command(name="assignement", description="Assigner un rôle et une série")
+@app_commands.choices(role=[
+    app_commands.Choice(name="Trad", value="Trad"),
+    app_commands.Choice(name="Check", value="Check"),
+    app_commands.Choice(name="Clean", value="Clean"),
+    app_commands.Choice(name="Edit", value="Edit"),
+    app_commands.Choice(name="Qedit", value="Qedit")
+])
+@app_commands.describe(salon="Nom du salon de la série", user="Utilisateur à assigner")
+async def assignement(interaction: discord.Interaction, role: app_commands.Choice[str], salon: str, user: discord.Member):
+    # Vérifie que le salon existe sur le serveur
+    discord_salon = discord.utils.get(interaction.guild.text_channels, name=salon)
+    if not discord_salon:
+        await interaction.response.send_message(f"Le salon `{salon}` n'existe pas.", ephemeral=True)
         return
+    
+    await interaction.response.send_message(f"Assigné {role.value} pour {discord_salon.mention} à {user.mention}")
 
-    discord_role = discord.utils.get(guild.roles, name=role.value)
-    if not discord_role:
-        await interaction.response.send_message(f"Erreur : le rôle `{role.value}` n'existe pas sur le serveur.", ephemeral=True)
-        return
-
-    await user.add_roles(discord_role)
-    await interaction.response.send_message(f"{user.mention} a été assigné au rôle `{role.value}` pour la série `{series}`.")
-
-@bot.event
+# --- EVENT READY ---
+@client.event
 async def on_ready():
-    await tree.sync(guild=discord.Object(id=GUILD_ID))
-    print(f"{bot.user} connecté et commandes synchronisées sur le serveur {GUILD_ID}!")
+    guild = discord.Object(id=GUILD_ID)
+    await tree.sync(guild=guild)
+    print(f"{client.user} connecté. Commandes synchronisées pour le serveur {GUILD_ID}.")
 
-bot.run(TOKEN)
-
-
+# Lancer le bot
+client.run(TOKEN)
