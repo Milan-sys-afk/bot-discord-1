@@ -47,36 +47,45 @@ async def new_serie(interaction: discord.Interaction, nom: str, cover: str, va: 
     await interaction.response.send_message(f"Série **{nom}** ajoutée.")
 
 # ====== /ASSIGNEMENT ======
-@bot.tree.command(name="assignement", description="Assigner un rôle sur une série")
-async def assignement(interaction: discord.Interaction, membre: discord.Member, role: str, serie: str):
-    role = role.lower()
+@app_commands.command(name="assignement", description="Assigner un membre à une série")
+@app_commands.describe(role="Rôle à donner", user="Utilisateur à assigner", salon="Salon de la série")
+@app_commands.choices(role=[
+    app_commands.Choice(name="Trad", value="Trad"),
+    app_commands.Choice(name="Check", value="Check"),
+    app_commands.Choice(name="Clean", value="Clean"),
+    app_commands.Choice(name="Edit", value="Edit"),
+    app_commands.Choice(name="Qedit", value="Qedit"),
+])
+async def assignement(interaction: discord.Interaction, role: app_commands.Choice[str], user: discord.Member, salon: discord.TextChannel):
+    await interaction.response.defer(ephemeral=True)  # Empêche l'expiration
 
-    if serie not in series_db:
-        await interaction.response.send_message("Série inconnue.")
+    guild = interaction.guild
+    role_name = role.value
+    serie_role = discord.utils.get(guild.roles, name=role_name)
+    if not serie_role:
+        await interaction.followup.send(f"❌ Le rôle {role_name} n'existe pas !", ephemeral=True)
         return
 
-    if role not in ["trad", "check", "clean", "edit", "qedit"]:
-        await interaction.response.send_message("Rôle invalide.")
-        return
+    try:
+        # Ajouter le rôle staff
+        await user.add_roles(serie_role)
 
-    # Donner accès au salon
-    salon = interaction.guild.get_channel(series_db[serie]["salon"])
-    await salon.set_permissions(membre, read_messages=True, send_messages=True)
+        # Ajouter le rôle de série (assume le rôle du salon a le même nom que le salon)
+        serie_role_salon = discord.utils.get(guild.roles, name=salon.name)
+        if serie_role_salon:
+            await user.add_roles(serie_role_salon)
 
-    # Donner rôle Discord
-    discord_role = discord.utils.get(interaction.guild.roles, name=role)
-    if discord_role:
-        await membre.add_roles(discord_role)
+        # Permissions du salon pour le membre
+        overwrite = discord.PermissionOverwrite()
+        overwrite.view_channel = True
+        overwrite.send_messages = True
+        await salon.set_permissions(user, overwrite=overwrite)
 
-    series_db[serie]["roles"][role] = membre.id
-
-    # Profil utilisateur
-    if membre.id not in profiles_db:
-        profiles_db[membre.id] = {"roles": set(), "chapters": 0, "series": set()}
-    profiles_db[membre.id]["roles"].add(role)
-    profiles_db[membre.id]["series"].add(serie)
-
-    await interaction.response.send_message(f"{membre.mention} est maintenant **{role}** sur **{serie}**.")
+        await interaction.followup.send(f"✅ {user.mention} a été assigné avec le rôle {role_name} sur {salon.mention}", ephemeral=True)
+    except discord.Forbidden:
+        await interaction.followup.send("❌ Je n'ai pas la permission d'ajouter ce rôle ou de modifier le salon.", ephemeral=True)
+    except Exception as e:
+        await interaction.followup.send(f"❌ Erreur inconnue : {e}", ephemeral=True)
 
 # ====== /INFOS ======
 @bot.tree.command(name="infos", description="Voir infos d'une série")
@@ -140,6 +149,7 @@ async def announce(interaction: discord.Interaction, serie: str, lien: str):
     await interaction.response.send_message(f"@everyone **{serie}** nouveau chapitre !\n{lien}")
 
 bot.run(TOKEN)
+
 
 
 
