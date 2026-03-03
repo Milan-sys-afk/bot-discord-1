@@ -3,12 +3,13 @@ import json
 import discord
 from discord import app_commands, Interaction
 from discord.ext import commands
-from dotenv import load_dotenv
+
 
 # Charger le token
-load_dotenv()
-TOKEN = os.getenv("DISCORD_TOKEN_BOT1")
 
+TOKEN = os.getenv("DISCORD_TOKEN_BOT1")
+if TOKEN is None:
+    raise ValueError("DISCORD_TOKEN n'est pas défini dans Railway")
 # Intents
 intents = discord.Intents.default()
 intents.members = True
@@ -140,5 +141,6 @@ async def on_ready():
     print(f"Connecté en tant que {client.user}")
 
 client.run(TOKEN)
+
 
 
