@@ -30,8 +30,9 @@ profiles_db = {}
 # ====== EVENTS ======
 @bot.event
 async def on_ready():
-    await bot.tree.sync()
-    print(f"Bot connecté : {bot.user}")
+    guild = discord.Object(id=TON_ID_DE_SERVEUR)
+    await bot.tree.sync(guild=guild)
+    print("Bot connecté + commandes sync")
 
 # ====== /NEW_SERIE ======
 @bot.tree.command(name="new_serie", description="Ajouter une nouvelle série")
@@ -139,5 +140,6 @@ async def announce(interaction: discord.Interaction, serie: str, lien: str):
     await interaction.response.send_message(f"@everyone **{serie}** nouveau chapitre !\n{lien}")
 
 bot.run(TOKEN)
+
 
 
